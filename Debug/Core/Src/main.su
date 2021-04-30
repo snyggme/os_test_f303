@@ -1,0 +1,16 @@
+main.c:63:6:parrotdelay	16	static,ignoring_inline_asm
+main.c:70:6:Delay_ms	24	static,ignoring_inline_asm
+main.c:80:6:TaskA	8	static
+main.c:90:6:TaskB	8	static
+main.c:99:6:TaskC	8	static
+main.c:109:6:TaskD	8	static
+main.c:118:6:TaskE	8	static
+main.c:128:6:TaskF	8	static
+main.c:159:5:main	16	static
+main.c:219:6:SystemClock_Config	128	static
+main.c:268:13:MX_I2C1_Init	8	static
+main.c:314:13:MX_SPI1_Init	8	static
+main.c:354:13:MX_USART2_UART_Init	8	static
+main.c:389:13:MX_USB_PCD_Init	8	static
+main.c:420:13:MX_GPIO_Init	48	static
+main.c:471:6:Error_Handler	4	static

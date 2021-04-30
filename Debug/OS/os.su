@@ -1,0 +1,17 @@
+core_cm4.h:1816:22:__NVIC_SetPriority	16	static
+core_cm4.h:2022:26:SysTick_Config	16	static
+os.c:36:6:OS_Init	4	static,ignoring_inline_asm
+os.c:42:6:SetInitialStack	16	static
+os.c:66:5:OS_AddThreads	56	static
+os.c:123:5:OS_AddPeriodicEventThread	16	static
+os.c:129:13:runperiodicevents	4	static
+os.c:140:6:OS_Launch	16	static
+os.c:151:6:Scheduler	4	static
+os.c:166:6:OS_Suspend	4	static
+os.c:177:6:OS_Sleep	16	static
+os.c:187:6:OS_InitSemaphore	16	static
+os.c:197:6:OS_Wait	16	static,ignoring_inline_asm
+os.c:218:6:OS_Signal	24	static,ignoring_inline_asm
+os.c:251:6:OS_FIFO_Init	4	static
+os.c:261:5:OS_FIFO_Put	16	static
+os.c:274:10:OS_FIFO_Get	16	static
