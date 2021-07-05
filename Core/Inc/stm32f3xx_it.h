@@ -24,7 +24,7 @@
 
 #ifdef __cplusplus
  extern "C" {
-#endif 
+#endif
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -55,7 +55,8 @@ void UsageFault_Handler(void);
 void SVC_Handler(void);
 void DebugMon_Handler(void);
 void PendSV_Handler(void);
-//void SysTick_Handler(void);
+void SysTick_Handler(void);
+void TIM1_UP_TIM16_IRQHandler(void);
 void USART2_IRQHandler(void);
 /* USER CODE BEGIN EFP */
 

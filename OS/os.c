@@ -16,7 +16,8 @@ void EndCritical(long sr);
 #define NUMTHREADS  6        // maximum number of threads
 #define NUMPERIODIC 2        // maximum number of periodic threads
 #define STACKSIZE   100      // number of 32-bit words in stack per thread
-struct tcb{
+struct tcb
+{
   int32_t *sp;       // pointer to stack (valid for threads not running
   struct tcb *next;  // linked-list pointer
   int32_t* blocked;  // nonzero if blocked on this semaphore
@@ -26,6 +27,19 @@ typedef struct tcb tcbType;
 tcbType tcbs[NUMTHREADS];
 tcbType *RunPt;
 int32_t Stacks[NUMTHREADS][STACKSIZE];
+
+struct petcb
+{
+  int32_t period;
+  int32_t sleep;
+  void(*periodicTask)(void);
+};
+typedef struct petcb petcbType;
+petcbType petcbs[NUMPERIODIC];
+int8_t petCurrentSize = 0;
+
+extern TIM_HandleTypeDef htim16;
+uint16_t counter = 0;
 
 // ******** OS_Init ************
 // Initialize operating system, disable interrupts
@@ -68,7 +82,7 @@ int OS_AddThreads(void(*thread0)(void),
                   void(*thread3)(void),
                   void(*thread4)(void),
                   void(*thread5)(void)){
-  // **similar to Lab 2. initialize as not blocked, not sleeping****
+  // ****initialize as not blocked, not sleeping****
   void (*fThreads[NUMTHREADS])() = {
     thread0,
     thread1,
@@ -107,16 +121,25 @@ int OS_AddThreads(void(*thread0)(void),
 // These threads can call OS_Signal
 // In Lab 3 this will be called exactly twice
 int OS_AddPeriodicEventThread(void(*thread)(void), uint32_t period){
-// ****IMPLEMENT THIS****
-  return 1;
-
+  if (petCurrentSize != NUMPERIODIC)
+  {
+	  petcbs[petCurrentSize].period = period;
+	  petcbs[petCurrentSize].sleep = period;
+	  petcbs[petCurrentSize].periodicTask = thread;
+	  petCurrentSize++;
+  }
+  else
+  {
+	  return 0;	// full
+  }
+  return 1;		// success
 }
 
-void static runperiodicevents(void){
-// ****IMPLEMENT THIS****
-// **RUN PERIODIC THREADS, DECREMENT SLEEP COUNTERS
-
-}
+//void static runperiodicevents(void){
+//// ****IMPLEMENT THIS****
+//// **RUN PERIODIC THREADS, DECREMENT SLEEP COUNTERS
+//
+//}
 
 //******** OS_Launch ***************
 // Start the scheduler, enable interrupts
@@ -135,7 +158,6 @@ void Scheduler(void){ // every time slice
   {
     RunPt = RunPt->next; // find one not sleeping and not blocked 
   }
-  
 }
 
 //******** OS_Suspend ***************
@@ -155,8 +177,38 @@ void OS_Suspend(void){
 // output: none
 // OS_Sleep(0) implements cooperative multitasking
 void OS_Sleep(uint32_t sleepTime){
-	RunPt->sleep = sleepTime;	// set sleep parameter in TCB
-	OS_Suspend();				// suspend, stops running
+  RunPt->sleep = sleepTime;	// set sleep parameter in TCB
+  OS_Suspend();				// suspend, stops running
+}
+
+// ******** STM32F303 TIM16 interrupt ************
+// timer reload HAL interrupt handler
+// input:  handler of stm32 timer
+// output: none
+// OS_Sleep(0) implements cooperative multitasking
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if(htim->Instance == TIM16)
+  {
+    for(uint8_t i = 0; i < NUMTHREADS; i++)
+	{
+	  if(tcbs[i].sleep)
+	    tcbs[i].sleep--;
+	}
+
+    for(uint8_t i = 0; i < NUMPERIODIC; i++)
+    {
+      if(petcbs[i].sleep) 	// check if periodic event task is ready to proceed
+      {
+        petcbs[i].sleep--;
+      }
+      else
+      {
+    	petcbs[i].sleep = petcbs[i].period; // set task in sleep mode again
+        (*petcbs[i].periodicTask)();		// run task
+      }
+    }
+  }
 }
 
 // ******** OS_InitSemaphore ************
@@ -227,9 +279,9 @@ uint32_t LostData;  // number of lost pieces of data
 // Inputs:  none
 // Outputs: none
 void OS_FIFO_Init(void){
-	PutI = GetI = 0; // empty
-	OS_InitSemaphore(&CurrentSize, 0);
-	LostData = 0;
+  PutI = GetI = 0; // empty
+  OS_InitSemaphore(&CurrentSize, 0);
+  LostData = 0;
 }
 
 // ******** OS_FIFO_Put ************
@@ -239,18 +291,18 @@ void OS_FIFO_Init(void){
 // Inputs:  data to be stored
 // Outputs: 0 if successful, -1 if the FIFO is full
 int OS_FIFO_Put(uint32_t data){
-	if(CurrentSize == FSIZE)
-	{
-		LostData++;
-		return -1;	// full
-	}
-	else
-	{
-		Fifo[PutI] = data;	// put
-		PutI = (PutI + 1) % FSIZE;
-		OS_Signal(&CurrentSize);
-		return 0;   // success
-	}
+  if(CurrentSize == FSIZE)
+  {
+    LostData++;
+	return -1;	// full
+  }
+  else
+  {
+    Fifo[PutI] = data;	// put
+	PutI = (PutI + 1) % FSIZE;
+	OS_Signal(&CurrentSize);
+	return 0;   // success
+  }
 }
 
 // ******** OS_FIFO_Get ************
@@ -260,13 +312,13 @@ int OS_FIFO_Put(uint32_t data){
 // Inputs:  none
 // Outputs: data retrieved
 uint32_t OS_FIFO_Get(void){
-	uint32_t data;
+  uint32_t data;
 
-	OS_Wait(&CurrentSize);		// block if empty
-	data = Fifo[GetI];			// get
-	GetI = (GetI + 1) % FSIZE;	// place to get next
+  OS_Wait(&CurrentSize);		// block if empty
+  data = Fifo[GetI];			// get
+  GetI = (GetI + 1) % FSIZE;	// place to get next
 
-	return data;
+  return data;
 }
 
 

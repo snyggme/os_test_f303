@@ -17,7 +17,6 @@
   ******************************************************************************
   */
 /* USER CODE END Header */
-
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
@@ -45,95 +44,104 @@ I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
 
+TIM_HandleTypeDef htim16;
+
 UART_HandleTypeDef huart2;
 
 PCD_HandleTypeDef hpcd_USB_FS;
 
 /* USER CODE BEGIN PV */
-int32_t sAB,sCD,sEF;
-int32_t CountA,CountB,CountC,CountD,CountE,CountF;
 
-void Delay_ms(uint32_t n)
-{
-	for(uint32_t i=0;i<1000;i++)for(uint32_t j=0;j<n;j++)__NOP();
-}
+int32_t TaskSdata=0;
 
-int32_t TaskMdata;
+void TaskS(void){ // producer as event thread every 10 ms
+  int i;
+  int num = (TaskSdata%5)+1;
 
-void TaskM(void){ // producer
-  TaskMdata=0;
-
-  while(1)
+  for(i=0; i<num; i++)
   {
-	int i;
-	int num = (TaskMdata%5)+1;
-
-    for(i=0; i<num; i++)
-    {
-      OS_FIFO_Put(TaskMdata);  // TaskN can proceed
-      TaskMdata++;
-    }
-    OS_Sleep(10);
+    OS_FIFO_Put(TaskSdata);  // TaskT can proceed
+    TaskSdata++;
   }
 }
 
-int32_t TaskNexpected, TaskNactual, TaskNLostData;
+int32_t TaskTexpected, TaskTactual, TaskTLostData;
 
-void TaskN(void){ // consumer
-  TaskNexpected = 0;
-  TaskNLostData = 0;
+void TaskT(void){ // consumer as main thread
+  TaskTexpected = 0;
+  TaskTLostData = 0;
 
   while(1)
   {
-    TaskNactual = OS_FIFO_Get();  // signaled by Task M
-    if(TaskNactual!= TaskNexpected)
+    TaskTactual = OS_FIFO_Get();  // signaled by Task S
+    if(TaskTactual!= TaskTexpected)
     {
-      TaskNLostData++;
-      TaskNexpected = TaskNactual;
+      TaskTLostData++;
+      TaskTexpected = TaskTactual;
     }
     else
     {
-      TaskNexpected++;
+      TaskTexpected++;
     }
   }
 }
 
-int32_t CountO;
+int32_t CountU=0;
+int32_t sUV;
 
-void TaskO(void){ // sleeping 20 ms
-  CountO = 0;
-  while(1){
-    CountO++;
-    OS_Sleep(20);
+void TaskU(void){ // event thread every 100 ms
+  CountU++;
+  OS_Signal(&sUV);
+}
+
+int32_t CountV;
+
+void TaskV(void){ // connected to TaskU
+  CountV = 0;
+
+  while(1)
+  {
+    OS_Wait(&sUV);
+    CountV++;
   }
 }
 
-int32_t CountP;
+int32_t CountW;
 
-void TaskP(void){ // sleeping 30 ms
-  CountP = 0;
+void TaskW(void){ // sleeping 30 ms
+  CountW = 0;
   while(1){
-    CountP++;
+    CountW++;
     OS_Sleep(30);
   }
 }
 
-int32_t CountQ;
+int32_t CountX;
 
-void TaskQ(void){ // sleeping 50 ms
-  CountQ = 0;
+void TaskX(void){ // sleeping 40 ms
+  CountX = 0;
   while(1){
-    CountQ++;
+    CountX++;
+    OS_Sleep(40);
+  }
+}
+
+int32_t CountY;
+
+void TaskY(void){ // sleeping 50 ms
+  CountY = 0;
+  while(1){
+    CountY++;
     OS_Sleep(50);
   }
 }
 
-int32_t CountR;
+int32_t CountZ;
 
-void TaskR(void){ // dummy
-  CountR = 0;
+void TaskZ(void){ // dummy
+  CountZ = 0;
   while(1){
-    CountR++;
+    CountZ++;
   }
 }
 
@@ -146,6 +154,7 @@ static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USB_PCD_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_TIM16_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -164,7 +173,6 @@ int main(void)
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
-  
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -189,17 +197,18 @@ int main(void)
   MX_SPI1_Init();
   MX_USB_PCD_Init();
   MX_USART2_UART_Init();
+  MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
-  OS_InitSemaphore(&sAB, 0);
-  OS_InitSemaphore(&sCD, 0);
-  OS_InitSemaphore(&sEF, 0);
+  HAL_TIM_Base_Start_IT(&htim16);
 
-  OS_AddThreads(&TaskM, &TaskN, &TaskO, &TaskP, &TaskQ, &TaskR);
+  OS_InitSemaphore(&sUV, 0);
+
+  OS_AddThreads(&TaskT, &TaskV, &TaskW, &TaskX, &TaskY, &TaskZ);
+  OS_AddPeriodicEventThread(&TaskS, 10);
+  OS_AddPeriodicEventThread(&TaskU, 100);
 
   OS_Launch(SystemCoreClock / 1000U);
   /* USER CODE END 2 */
- 
- 
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -222,7 +231,8 @@ void SystemClock_Config(void)
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
-  /** Initializes the CPU, AHB and APB busses clocks 
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
@@ -236,7 +246,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  /** Initializes the CPU, AHB and APB busses clocks 
+  /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
@@ -288,13 +298,13 @@ static void MX_I2C1_Init(void)
   {
     Error_Handler();
   }
-  /** Configure Analogue filter 
+  /** Configure Analogue filter
   */
   if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
   {
     Error_Handler();
   }
-  /** Configure Digital filter 
+  /** Configure Digital filter
   */
   if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
   {
@@ -343,6 +353,38 @@ static void MX_SPI1_Init(void)
   /* USER CODE BEGIN SPI1_Init 2 */
 
   /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
+  * @brief TIM16 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM16_Init(void)
+{
+
+  /* USER CODE BEGIN TIM16_Init 0 */
+
+  /* USER CODE END TIM16_Init 0 */
+
+  /* USER CODE BEGIN TIM16_Init 1 */
+
+  /* USER CODE END TIM16_Init 1 */
+  htim16.Instance = TIM16;
+  htim16.Init.Prescaler = 7200 - 1;
+  htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim16.Init.Period = 10 - 1;
+  htim16.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim16.Init.RepetitionCounter = 0;
+  htim16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim16) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM16_Init 2 */
+
+  /* USER CODE END TIM16_Init 2 */
 
 }
 
@@ -429,23 +471,23 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin|LD4_Pin|LD3_Pin|LD5_Pin 
-                          |LD7_Pin|LD9_Pin|LD10_Pin|LD8_Pin 
+  HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin|LD4_Pin|LD3_Pin|LD5_Pin
+                          |LD7_Pin|LD9_Pin|LD10_Pin|LD8_Pin
                           |LD6_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : DRDY_Pin MEMS_INT3_Pin MEMS_INT4_Pin MEMS_INT1_Pin 
+  /*Configure GPIO pins : DRDY_Pin MEMS_INT3_Pin MEMS_INT4_Pin MEMS_INT1_Pin
                            MEMS_INT2_Pin */
-  GPIO_InitStruct.Pin = DRDY_Pin|MEMS_INT3_Pin|MEMS_INT4_Pin|MEMS_INT1_Pin 
+  GPIO_InitStruct.Pin = DRDY_Pin|MEMS_INT3_Pin|MEMS_INT4_Pin|MEMS_INT1_Pin
                           |MEMS_INT2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CS_I2C_SPI_Pin LD4_Pin LD3_Pin LD5_Pin 
-                           LD7_Pin LD9_Pin LD10_Pin LD8_Pin 
+  /*Configure GPIO pins : CS_I2C_SPI_Pin LD4_Pin LD3_Pin LD5_Pin
+                           LD7_Pin LD9_Pin LD10_Pin LD8_Pin
                            LD6_Pin */
-  GPIO_InitStruct.Pin = CS_I2C_SPI_Pin|LD4_Pin|LD3_Pin|LD5_Pin 
-                          |LD7_Pin|LD9_Pin|LD10_Pin|LD8_Pin 
+  GPIO_InitStruct.Pin = CS_I2C_SPI_Pin|LD4_Pin|LD3_Pin|LD5_Pin
+                          |LD7_Pin|LD9_Pin|LD10_Pin|LD8_Pin
                           |LD6_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -484,8 +526,8 @@ void Error_Handler(void)
   * @param  line: assert_param error line source number
   * @retval None
   */
-void assert_failed(char *file, uint32_t line)
-{ 
+void assert_failed(uint8_t *file, uint32_t line)
+{
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
