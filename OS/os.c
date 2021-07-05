@@ -35,7 +35,6 @@ int32_t Stacks[NUMTHREADS][STACKSIZE];
 // Outputs: none
 void OS_Init(void){
   __disable_irq();
-//  BSP_Clock_InitFastest();// set processor clock to fastest speed
   // perform any initializations needed
 }
 
@@ -89,21 +88,8 @@ int OS_AddThreads(void(*thread0)(void),
     SetInitialStack(i);
     Stacks[i][STACKSIZE-2] = (int32_t)(fThreads[i]);
   }
-//   tcbs[0].next = &tcbs[1]; // 0 points to 1
-//   tcbs[1].next = &tcbs[2]; // 1 points to 2
-//   tcbs[2].next = &tcbs[3]; // 2 points to 3
-//   tcbs[3].next = &tcbs[4]; // 3 points to 4
-//   tcbs[4].next = &tcbs[5]; // 4 points to 5
-//   tcbs[5].next = &tcbs[0]; // 5 points to 0
-//   SetInitialStack(0); Stacks[0][STACKSIZE-2] = (int32_t)(thread0); // PC
-//   SetInitialStack(1); Stacks[1][STACKSIZE-2] = (int32_t)(thread1); // PC
-//   SetInitialStack(2); Stacks[2][STACKSIZE-2] = (int32_t)(thread2); // PC
-//   SetInitialStack(3); Stacks[3][STACKSIZE-2] = (int32_t)(thread3); // PC
-//   SetInitialStack(4); Stacks[4][STACKSIZE-2] = (int32_t)(thread4); // PC
-//   SetInitialStack(5); Stacks[5][STACKSIZE-2] = (int32_t)(thread5); // PC
 
   RunPt = &tcbs[0];       // thread 0 will run first
-
   EndCritical(status);
   
   return 1;               // successful
@@ -138,13 +124,7 @@ void static runperiodicevents(void){
 // Outputs: none (does not return)
 // Errors: theTimeSlice must be less than 16,777,216
 void OS_Launch(uint32_t theTimeSlice){
-//  STCTRL = 0;                  // disable SysTick during setup
-//  STCURRENT = 0;               // any write to current clears it
-//  SYSPRI3 =(SYSPRI3&0x00FFFFFF)|0xE0000000; // priority 7
-//  STRELOAD = theTimeSlice - 1; // reload value
-//  STCTRL = 0x00000007;         // enable, core clock and interrupt arm
   SysTick_Config(theTimeSlice);
-
   StartOS();                   // start on the first task
 }
 // runs every ms
@@ -164,8 +144,8 @@ void Scheduler(void){ // every time slice
 // Outputs: none
 // Will be run again depending on sleep/block status
 void OS_Suspend(void){
-//  STCURRENT = 0;        // any write to current clears it
-//  INTCTRL = 0x04000000; // trigger SysTick
+  SysTick->VAL   = 0UL;	  				// any write to current clears it
+  SCB->ICSR = SCB_ICSR_PENDSTSET_Msk;	// trigger SysTick
 // next thread gets a full time slice
 }
 
@@ -175,8 +155,8 @@ void OS_Suspend(void){
 // output: none
 // OS_Sleep(0) implements cooperative multitasking
 void OS_Sleep(uint32_t sleepTime){
-// set sleep parameter in TCB
-// suspend, stops running
+	RunPt->sleep = sleepTime;	// set sleep parameter in TCB
+	OS_Suspend();				// suspend, stops running
 }
 
 // ******** OS_InitSemaphore ************
@@ -196,7 +176,6 @@ void OS_InitSemaphore(int32_t *semaPt, int32_t value){
 // Outputs: none
 void OS_Wait(int32_t *semaPt){
   __disable_irq();
-
   (*semaPt)--;
 
   if (*semaPt < 0)
@@ -218,7 +197,6 @@ void OS_Wait(int32_t *semaPt){
 void OS_Signal(int32_t *semaPt){
   tcbType *pt;
   __disable_irq();
-
   (*semaPt)++;
 
   if (*semaPt <= 0)
@@ -249,7 +227,9 @@ uint32_t LostData;  // number of lost pieces of data
 // Inputs:  none
 // Outputs: none
 void OS_FIFO_Init(void){
-//***IMPLEMENT THIS***
+	PutI = GetI = 0; // empty
+	OS_InitSemaphore(&CurrentSize, 0);
+	LostData = 0;
 }
 
 // ******** OS_FIFO_Put ************
@@ -259,10 +239,18 @@ void OS_FIFO_Init(void){
 // Inputs:  data to be stored
 // Outputs: 0 if successful, -1 if the FIFO is full
 int OS_FIFO_Put(uint32_t data){
-//***IMPLEMENT THIS***
-
-  return 0;   // success
-
+	if(CurrentSize == FSIZE)
+	{
+		LostData++;
+		return -1;	// full
+	}
+	else
+	{
+		Fifo[PutI] = data;	// put
+		PutI = (PutI + 1) % FSIZE;
+		OS_Signal(&CurrentSize);
+		return 0;   // success
+	}
 }
 
 // ******** OS_FIFO_Get ************
@@ -271,10 +259,14 @@ int OS_FIFO_Put(uint32_t data){
 // do block if empty
 // Inputs:  none
 // Outputs: data retrieved
-uint32_t OS_FIFO_Get(void){uint32_t data;
-//***IMPLEMENT THIS***
+uint32_t OS_FIFO_Get(void){
+	uint32_t data;
 
-  return data;
+	OS_Wait(&CurrentSize);		// block if empty
+	data = Fifo[GetI];			// get
+	GetI = (GetI + 1) % FSIZE;	// place to get next
+
+	return data;
 }
 
 

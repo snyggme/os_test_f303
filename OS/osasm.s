@@ -7,47 +7,40 @@
   REQUIRE8
   PRESERVE8
 */
-  .syntax unified
+	.file "osasm.s"
+  	.syntax unified
 	.cpu cortex-m4
 	.fpu softvfp
 	.thumb
 	.align  2
 
-.extern RunPt
-  /* currently running thread */
+.extern RunPt	@ currently running thread
 .extern Scheduler
-.global StartOS
-.global SysTick_Handlers
 
-SysTick_Handlers:
-  /* Saves R0-R3,R12,LR,PC,PSR */
-  cpsid   i
-  /* Prevent interrupt during switch */
-  push    {r4-r11}
-  /* Save remaining regs r4-11 */
-  ldr     r0, =RunPt
-  /* R0=pointer to RunPt, old thread */
-  LDR     R1, [R0]
-  /* R1 = RunPt */
-  STR     SP, [R1]
-  /* Save SP into TCB */
-/*  LDR     R1, [R1,#4]*/
-  /* R1 = RunPt->next */
-  /*STR     R1, [R0]*/
-  /* RunPt = R1 */
+.global SysTick_Handler
+.section	.text.SysTick_Handler
+.type	SysTick_Handler, %function
+
+SysTick_Handler: @ Saves R0-R3,R12,LR,PC,PSR
+  cpsid   i	@ Prevent interrupt during switch
+  push    {r4-r11}	@ Save remaining regs r4-11
+  ldr     r0, =RunPt	@ R0=pointer to RunPt, old thread
+  LDR     R1, [R0]		@ R1 = RunPt
+  STR     SP, [R1]		@ Save SP into TCB
+  @LDR     R1, [R1,#4]	@ R1 = RunPt->next
+  @STR     R1, [R0]	@ RunPt = R1
   PUSH	  {R0,LR}
   BL	  Scheduler
   POP	  {R0,LR}
-  LDR	  R1, [R0]
-  /* R1 = RunPt, new thread */
-  LDR     SP, [R1]
-  /* new thread SP; SP = RunPt->sp; */
-  POP     {R4-R11}
-  /* restore regs r4-11 */
-  CPSIE   I
-  /* tasks run with interrupts enabled */
-  BX      LR
-  /*restore R0-R3,R12,LR,PC,PSR */
+  LDR	  R1, [R0]		@ R1 = RunPt, new thread
+  LDR     SP, [R1]		@ new thread SP; SP = RunPt->sp;
+  POP     {R4-R11}		@ restore regs r4-11
+  CPSIE   I				@ tasks run with interrupts enabled
+  BX      LR			@ restore R0-R3,R12,LR,PC,PSR
+
+.global StartOS
+.section	.text.StartOS
+.type	StartOS, %function
 
 StartOS:
   LDR     R0, =RunPt

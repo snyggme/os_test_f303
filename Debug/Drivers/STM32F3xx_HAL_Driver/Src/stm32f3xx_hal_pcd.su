@@ -33,4 +33,4 @@ stm32f3xx_hal_pcd.c:1447:19:HAL_PCD_DeActivateRemoteWakeup	16	static
 stm32f3xx_hal_pcd.c:1476:18:HAL_PCD_GetState	16	static
 stm32f3xx_hal_pcd.c:1500:26:PCD_EP_ISR_Handler	64	static
 stm32f3xx_hal_pcd.c:1735:17:HAL_PCD_EP_DB_Receive	40	static
-stm32f3xx_hal_pcd.c:1816:26:HAL_PCD_EP_DB_Transmit	80	static
+stm32f3xx_hal_pcd.c:1816:26:HAL_PCD_EP_DB_Transmit	88	static

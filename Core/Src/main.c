@@ -53,87 +53,90 @@ PCD_HandleTypeDef hpcd_USB_FS;
 int32_t sAB,sCD,sEF;
 int32_t CountA,CountB,CountC,CountD,CountE,CountF;
 
-//__asm void parrotdelay(uint32_t count)
-//{
-//	subs r0, #1
-//	bne parrotdelay
-//	bx lr
-//};
-
-void parrotdelay(uint32_t count)
-{
-	asm("SUBS r0, #1 \n");
-	asm("BNE parrotdelay \n");
-	asm("BX LR");
-}
-
 void Delay_ms(uint32_t n)
 {
-	for(uint32_t i=0;i<1000;i++)for(uint32_t j=0;j<1000;j++)__NOP();
-//	while(n)
-//	{
-//		parrotdelay(23746);
-//		n--;
-//	}
+	for(uint32_t i=0;i<1000;i++)for(uint32_t j=0;j<n;j++)__NOP();
 }
 
-void TaskA(void){ // producer
-  CountA = 0;
-  while(1){
-    CountA++;
-//    Profile_Toggle0();
-    OS_Signal(&sAB);  // TaskB can proceed
-    HAL_GPIO_TogglePin(GPIOE, LD3_Pin);
-    Delay_ms(2);  // important: actual delay is multiplied by number of unblocked threads (expect 3)
+int32_t TaskMdata;
+
+void TaskM(void){ // producer
+  TaskMdata=0;
+
+  while(1)
+  {
+	int i;
+	int num = (TaskMdata%5)+1;
+
+    for(i=0; i<num; i++)
+    {
+      OS_FIFO_Put(TaskMdata);  // TaskN can proceed
+      TaskMdata++;
+    }
+    OS_Sleep(10);
   }
 }
-void TaskB(void){ // consumer
-  CountB = 0;
-  while(1){
-    CountB++;
-    OS_Wait(&sAB);  // signaled by TaskA
-    HAL_GPIO_TogglePin(GPIOE, LD4_Pin);
-//    Profile_Toggle1();
+
+int32_t TaskNexpected, TaskNactual, TaskNLostData;
+
+void TaskN(void){ // consumer
+  TaskNexpected = 0;
+  TaskNLostData = 0;
+
+  while(1)
+  {
+    TaskNactual = OS_FIFO_Get();  // signaled by Task M
+    if(TaskNactual!= TaskNexpected)
+    {
+      TaskNLostData++;
+      TaskNexpected = TaskNactual;
+    }
+    else
+    {
+      TaskNexpected++;
+    }
   }
 }
-void TaskC(void){ // producer
-  CountC = 0;
+
+int32_t CountO;
+
+void TaskO(void){ // sleeping 20 ms
+  CountO = 0;
   while(1){
-    CountC++;
-//    Profile_Toggle2();
-    OS_Signal(&sCD);  // TaskD can proceed
-    HAL_GPIO_TogglePin(GPIOE, LD5_Pin);
-//    Delay_ms(20); // important: actual delay is multiplied by number of unblocked threads (expect 3)
+    CountO++;
+    OS_Sleep(20);
   }
 }
-void TaskD(void){ // consumer
-  CountD = 0;
+
+int32_t CountP;
+
+void TaskP(void){ // sleeping 30 ms
+  CountP = 0;
   while(1){
-    CountD++;
-    OS_Wait(&sCD);  // signaled by TaskC
-    HAL_GPIO_TogglePin(GPIOE, LD6_Pin);
-//    Profile_Toggle3();
+    CountP++;
+    OS_Sleep(30);
   }
 }
-void TaskE(void){ // producer
-  CountE = 0;
+
+int32_t CountQ;
+
+void TaskQ(void){ // sleeping 50 ms
+  CountQ = 0;
   while(1){
-    CountE++;
-//    Profile_Toggle4();
-    OS_Signal(&sEF);  // TaskF can proceed
-    HAL_GPIO_TogglePin(GPIOE, LD7_Pin);
-//    Delay_ms(200);// important: actual delay is multiplied by number of unblocked threads (expect 3)
+    CountQ++;
+    OS_Sleep(50);
   }
 }
-void TaskF(void){ // consumer
-  CountF = 0;
+
+int32_t CountR;
+
+void TaskR(void){ // dummy
+  CountR = 0;
   while(1){
-    CountF++;
-    OS_Wait(&sEF);  // signaled by TaskE
-    HAL_GPIO_TogglePin(GPIOE, LD8_Pin);
-//    Profile_Toggle5();
+    CountR++;
   }
 }
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -170,6 +173,7 @@ int main(void)
 
   /* USER CODE BEGIN Init */
   OS_Init();
+  OS_FIFO_Init();
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -189,9 +193,9 @@ int main(void)
   OS_InitSemaphore(&sAB, 0);
   OS_InitSemaphore(&sCD, 0);
   OS_InitSemaphore(&sEF, 0);
-//
-  OS_AddThreads(&TaskA, &TaskB, &TaskC, &TaskD, &TaskE, &TaskF);
-//
+
+  OS_AddThreads(&TaskM, &TaskN, &TaskO, &TaskP, &TaskQ, &TaskR);
+
   OS_Launch(SystemCoreClock / 1000U);
   /* USER CODE END 2 */
  
@@ -201,10 +205,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
-	  //PE12
-//	  HAL_GPIO_TogglePin(GPIOE, LD7_Pin);
-	  Delay_ms(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
